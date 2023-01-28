@@ -1,0 +1,82 @@
+
+
+
+
+
+
+
+test=# create table ts2(doc text, doc_tsv tsvector);
+CREATE TABLE
+test=# insert into ts2(doc) select  md5(random()::text);
+INSERT 0 1
+test=# create index on ts2 using gist(doc_tsv  tsvector_ops);
+CREATE INDEX
+test=# update ts2 set doc_tsv = to_tsvector(doc);
+UPDATE 1
+test=# commit;
+WARNING:  there is no transaction in progress
+COMMIT
+test=# \d ts2
+                 Table "public.ts2"
+ Column  |   Type   | Collation | Nullable | Default
+---------+----------+-----------+----------+---------
+ doc     | text     |           |          |
+ doc_tsv | tsvector |           |          |
+Indexes:
+    "ts2_doc_tsv_idx" gist (doc_tsv)
+
+test=#
+
+SELECT opc.oid, 
+ am.amname AS index_method,
+       opc.opcname AS opclass_name,
+       opc.opcintype::regtype AS indexed_type,
+       opc.opcdefault AS is_default
+    FROM pg_am am, pg_opclass opc
+    WHERE
+	opc.opcname='tsvector_ops'
+	and am.amname='gist'
+    and opc.opcmethod = am.oid;
+	
+test=# SELECT opc.oid,
+test-#  am.amname AS index_method,
+test-#        opc.opcname AS opclass_name,
+test-#        opc.opcintype::regtype AS indexed_type,
+test-#        opc.opcdefault AS is_default
+test-#     FROM pg_am am, pg_opclass opc
+test-#     WHERE
+test-# opc.opcname='tsvector_ops'
+test-# and am.amname='gist'
+test-#     and opc.opcmethod = am.oid;
+  oid  | index_method | opclass_name | indexed_type | is_default
+-------+--------------+--------------+--------------+------------
+ 10069 | gist         | tsvector_ops | tsvector     | t
+(1 row)
+
+
+demo=# create table pg_opclass_bkp as select  * from pg_opclass where oid='10069';
+SELECT 1
+demo=# begin;
+BEGIN
+demo=# delete from pg_opclass where  oid='10069';
+DELETE 1
+demo=# commit;
+COMMIT
+
+
+postgres=# \dt
+              List of relations
+ Schema |      Name       | Type  |  Owner
+--------+-----------------+-------+----------
+ public | global_points   | table | postgres
+ public | spatial_ref_sys | table | postgres
+ public | ts2             | table | postgres
+(3 rows)
+
+postgres=# \d ts2
+ERROR:  cache lookup failed for opclass 10069
+postgres=# \di+ ts2_doc_tsv_idx
+ERROR:  could not find tuple for opclass 10069
+postgres=#
+
+
